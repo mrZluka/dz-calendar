@@ -6,8 +6,8 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Домашні завдання</title>
 <style>
-:root{--bg:#f6f4ee;--card:#fff;--ink:#1d1d1b;--muted:#6b6a64;--line:#e4e1d8;--acc:#7a5af5;--badge:#efe9ff;--today:#ffb74d}
-@media (prefers-color-scheme:dark){:root{--bg:#15151a;--card:#1f1f26;--ink:#ecebe6;--muted:#9c9a92;--line:#33333d;--acc:#a98cff;--badge:#2b2540;--today:#ffb74d}}
+:root{--bg:#f6f4ee;--card:#fff;--ink:#1d1d1b;--muted:#6b6a64;--line:#e4e1d8;--acc:#7a5af5;--badge:#efe9ff;--today:#ffb74d;--hol:#2f8f5b;--hol-bg:#e4f4ea}
+@media (prefers-color-scheme:dark){:root{--bg:#15151a;--card:#1f1f26;--ink:#ecebe6;--muted:#9c9a92;--line:#33333d;--acc:#a98cff;--badge:#2b2540;--today:#ffb74d;--hol:#7ad3a0;--hol-bg:#1e3327}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 main{max-width:560px;margin:0 auto;padding:20px 16px 48px}
@@ -25,6 +25,7 @@ h1{font-size:1.6rem;margin:0 0 4px}
 .wd.we{color:#c0564b}
 .day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;font-size:.95rem;color:var(--muted);text-decoration:none;position:relative;border:1px solid transparent}
 .day.in{color:var(--ink)}
+.day.hol{background:var(--hol-bg);color:var(--hol);border-color:var(--hol)}
 .day.has{background:var(--badge);color:var(--acc);font-weight:700;border-color:var(--acc)}
 .day.has:hover{filter:brightness(.95)}
 .day.today{outline:2px solid var(--today);outline-offset:-2px}
@@ -37,6 +38,8 @@ ul.list a{display:block;padding:10px 14px;text-decoration:none;color:var(--ink)}
 ul.list .d{color:var(--acc);font-weight:700;margin-right:8px}
 ul.list .s{display:block;color:var(--muted);font-size:.85rem}
 .legend{color:var(--muted);font-size:.8rem;margin-top:10px}
+.legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin:0 3px 0 6px}
+.holnote{background:var(--hol-bg);color:var(--hol);border-radius:12px;padding:8px 14px;margin:0 0 14px;font-weight:600}
 .err{color:#c0564b}
 footer{color:var(--muted);font-size:.8rem;margin-top:24px}
 </style>
@@ -45,6 +48,7 @@ footer{color:var(--muted);font-size:.8rem;margin-top:24px}
 <main>
 <h1>Домашні завдання</h1>
 <p class="sub">Натисни на день з крапкою, щоб відкрити завдання.</p>
+<p class="holnote" id="holnote" hidden></p>
 <a class="next none" id="next" href="#">Завантаження…</a>
 <section class="cal">
   <div class="calhead">
@@ -53,13 +57,14 @@ footer{color:var(--muted);font-size:.8rem;margin-top:24px}
     <button id="fwd" aria-label="Наступний місяць">›</button>
   </div>
   <div class="grid" id="grid"></div>
-  <p class="legend">Помаранчева рамка — сьогодні. Фіолетові дні — є сторінка із завданнями.</p>
+  <p class="legend" id="legend">Помаранчева рамка — сьогодні. Фіолетові дні — є сторінка із завданнями.</p>
 </section>
 <h3>Усі сторінки</h3>
 <ul class="list" id="list"></ul>
 <footer>Сторінки збираються з повідомлень навчальної групи та підручників.</footer>
 </main>
 <script src="dz/index.js"></script>
+<script src="dz/holidays.js"></script>
 <script>
 (function () {
   var MONTHS = ["січень","лютий","березень","квітень","травень","червень","липень","серпень","вересень","жовтень","листопад","грудень"];
@@ -69,16 +74,34 @@ footer{color:var(--muted);font-size:.8rem;margin-top:24px}
   var entries = (window.DZ_INDEX || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
   var byDate = {};
   entries.forEach(function (e) { byDate[e.date] = e; });
+  var holidays = (window.DZ_HOLIDAYS || []).filter(function (h) { return h.from && h.to && h.from <= h.to; })
+    .sort(function (a, b) { return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
+  function holidayFor(key) {
+    for (var i = 0; i < holidays.length; i++) if (key >= holidays[i].from && key <= holidays[i].to) return holidays[i];
+    return null;
+  }
 
   function pad(n) { return (n < 10 ? "0" : "") + n; }
   function iso(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
   function parse(s) { var p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
   function human(s) { var d = parse(s); return WD_LONG[(d.getDay() + 6) % 7] + ", " + d.getDate() + " " + MONTHS_GEN[d.getMonth()]; }
+  function short(s) { var d = parse(s); return d.getDate() + " " + MONTHS_GEN[d.getMonth()]; }
 
   var today = new Date(); today.setHours(0, 0, 0, 0);
   var todayIso = iso(today);
   var view = new Date(today.getFullYear(), today.getMonth(), 1);
 
+  var holNote = document.getElementById("holnote");
+  var curHol = holidays.filter(function (h) { return h.to >= todayIso; })[0];
+  if (curHol) {
+    holNote.hidden = false;
+    holNote.textContent = "🍂 " + (curHol.title || "Канікули") + ": " + short(curHol.from) + " – " + short(curHol.to) +
+      (curHol.from <= todayIso ? " (зараз канікули)" : "");
+  }
+  if (holidays.length) {
+    document.getElementById("legend").innerHTML += ' <span class="sw" style="background:var(--hol-bg);border:1px solid var(--hol)"></span>Зелені дні — канікули' +
+      " (" + holidays.map(function (h) { return (h.title || "канікули") + " " + short(h.from) + " – " + short(h.to); }).join("; ") + ").";
+  }
   var nextEl = document.getElementById("next");
   var upcoming = entries.filter(function (e) { return e.date >= todayIso; })[0];
   var latest = entries[entries.length - 1];
@@ -111,10 +134,12 @@ footer{color:var(--muted);font-size:.8rem;margin-top:24px}
       var date = new Date(view.getFullYear(), view.getMonth(), d);
       var key = iso(date);
       var e = byDate[key];
+      var h = holidayFor(key);
       var el = document.createElement(e ? "a" : "div");
-      el.className = "day in" + (e ? " has" : "") + (key === todayIso ? " today" : "");
+      el.className = "day in" + (e ? " has" : "") + (h ? " hol" : "") + (key === todayIso ? " today" : "");
       el.textContent = d;
       if (e) { el.href = e.file; el.title = e.title || key; }
+      else if (h) { el.title = h.title || "Канікули"; }
       grid.appendChild(el);
     }
   }
