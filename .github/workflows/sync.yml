@@ -21,7 +21,6 @@ jobs:
     timeout-minutes: 10
     env:
       PYTHONUTF8: "1"
-      HW: ${{ runner.temp }}/hw
     steps:
       - uses: actions/checkout@v4
 
@@ -29,14 +28,14 @@ jobs:
         env:
           HW_DEPLOY_KEY: ${{ secrets.HW_DEPLOY_KEY }}
         run: |
-          test -n "$HW_DEPLOY_KEY" || { echo "::error::секрет HW_DEPLOY_KEY порожній"; exit 2; }
+          test -n "$RUNNER_TEMP/hw_DEPLOY_KEY" || { echo "::error::секрет HW_DEPLOY_KEY порожній"; exit 2; }
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$HW_DEPLOY_KEY" > ~/.ssh/hw_key && chmod 600 ~/.ssh/hw_key
+          printf '%s\n' "$RUNNER_TEMP/hw_DEPLOY_KEY" > ~/.ssh/hw_key && chmod 600 ~/.ssh/hw_key
           ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/hw_key -o IdentitiesOnly=yes"
-          git clone -q --depth 1 --filter=blob:none --sparse git@github.com:mrZluka/telegram-homework.git "$HW"
-          git -C "$HW" sparse-checkout set out/dz
-          ls "$HW"/out/dz/*.html
+          git clone -q --depth 1 --filter=blob:none --sparse git@github.com:mrZluka/telegram-homework.git "$RUNNER_TEMP/hw"
+          git -C "$RUNNER_TEMP/hw" sparse-checkout set out/dz
+          ls "$RUNNER_TEMP/hw"/out/dz/*.html
 
       - uses: actions/setup-python@v5
         with:
@@ -47,8 +46,8 @@ jobs:
           DZ_SITE_DIR: ${{ github.workspace }}
         run: |
           shopt -s nullglob
-          for f in "$HW"/out/dz/*.html; do
-            python "$HW/site_publish.py" add --if-changed "$f"
+          for f in "$RUNNER_TEMP/hw"/out/dz/*.html; do
+            python "$RUNNER_TEMP/hw/site_publish.py" add --if-changed "$f"
           done
 
       - name: Коміт і push (Pages оновиться сам)
